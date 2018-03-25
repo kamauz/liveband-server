@@ -1,0 +1,29 @@
+{
+   "name": "LiveBand",
+   "version": "0.0.1",
+   "description": "Awesome project developed with TypeORM.",
+   "devDependencies": {
+      "@types/node": "^8.0.29",
+      "jasmine": "^3.1.0",
+      "ts-node": "3.3.0",
+      "typescript": "2.5.2"
+   },
+   "dependencies": {
+      "axios": "^0.18.0",
+      "crypto-random-string": "^1.0.0",
+      "fb": "^2.0.0",
+      "mysql": "^2.14.1",
+      "reflect-metadata": "^0.1.10",
+      "request": "^2.85.0",
+      "request-sync": "^1.0.0",
+      "restify": "^6.3.4",
+      "restify-cors-middleware": "^1.1.0",
+      "restify-jwt": "^0.4.0",
+      "restify-plugins": "^1.6.0",
+      "typeorm": "0.1.16"
+   },
+   "scripts": {
+      "start": "ts-node src/index.ts",
+      "test": "jasmine"
+   }
+}
