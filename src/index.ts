@@ -28,11 +28,13 @@ createConnection().then(async conn => {
 
     
     server.post('/account/login', async (req, res, next) => {
-        facebookAuth(req.body.facebookAuth)
-            .then((result) => {
-                res.send(result)
-            }).catch((e) => res.send(treatError(emit)))
-        next()
+        try {
+            const result = await facebookAuth(req.body.facebookAuth)
+            res.send(result)
+            next()
+        } catch(e) {
+            res.send(treatError(emit))
+        }
     })
 
     
