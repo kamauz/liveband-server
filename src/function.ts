@@ -36,13 +36,9 @@ module.exports = function(conn) {
     }
 
     async function getMany<T>(arr, T) : Promise<T[]>{
-        let promiseArray = []
-        arr.forEach(element => {
-            promiseArray.push(get<T>(element, T))
-        })
-
-        let result = await Promise.all(promiseArray).catch((e) => { throw e })
-        return Promise.resolve(result)
+        const promiseArray = arr.map(element => get<t>(element, T))
+        const result = await Promise.all(promiseArray).catch(e => { throw e })
+        return result
     }
 
     async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
