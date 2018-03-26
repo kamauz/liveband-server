@@ -18,14 +18,21 @@ module.exports = function(conn) {
     var fb = "https://graph.facebook.com"
 
     async function addItem<T>(data, T) {
-        let obj = Object.assign(new T, data)
+        try {
+            let obj = Object.assign(new T, data)
 
-        // check correct instance (??)
-        if (!(obj instanceof T)) return Promise.reject({ error: "Error while parsing the input" })
+            // check correct instance (??)
+            if (!(obj instanceof T)) {
+                throw { error: "Error while parsing the input" }
+            }
 
-        // add item
-        let result = await conn.getRepository(T).save(obj).catch((e) => { return Promise.reject(e) })
-        return Promise.resolve(result)
+            // add item
+            const result = await conn.getRepository(T).save(obj)
+            return result
+        } catch (e) {
+            console.log(e)
+            throw e
+        } 
     }
 
     async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
