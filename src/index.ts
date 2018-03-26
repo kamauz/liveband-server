@@ -46,7 +46,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    
+    // OK
     server.post('/event', async (req, res, next) => {
         createEvent(req.body.event)
             .then((result) => {

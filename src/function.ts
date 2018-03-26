@@ -36,23 +36,14 @@ module.exports = function(conn) {
     }
 
     async function getMany<T>(arr, T) : Promise<T[]>{
-<<<<<<< HEAD
-        let promiseArray = []
-        arr.forEach(element => {
-            promiseArray.push(get<T>(element, T))
-        })
-
-        let result = await Promise.all(promiseArray).catch((e) => { throw e })
+        const promiseArray:T[] = arr.map(element => get<T>(element, T))
+        const result = await Promise.all(promiseArray).catch(e => { throw e })
         return result
     }
 
     async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
-        let promiseArray = []
-        arr.forEach(element => {
-            promiseArray.push(getAndCreate<T>(element, T))
-        })
-
-        let result = await Promise.all(promiseArray).catch((e) => { throw e })
+        const promiseArray:T[] = arr.map(element => getAndCreate<T>(element, T))
+        const result = await Promise.all(promiseArray).catch((e) => { throw e })
         return result
     }
 
@@ -64,6 +55,7 @@ module.exports = function(conn) {
             if (got) return got
             else {
                 let additem = await addItem(data, T).catch((e) => { throw e })
+                return additem
             }
     }
 
@@ -122,10 +114,11 @@ module.exports = function(conn) {
 
         let result = await Promise.all(promises).catch((e) => { throw e })
         // fill foreign key references
-        result[3].bands = result[0]
+        result[3].bands = [].concat(...result[0])
         result[3].owner = result[1]
         result[3].location = result[2]
         console.log(result[3])
+        console.log(result[0])
 
         // update entity row
         let save = await conn.manager.save(result[3]).catch((e) => { throw e })
@@ -135,12 +128,13 @@ module.exports = function(conn) {
 
     async function createBand(band) : Promise<Band> {
         // input data check
+        console.log('createBand')
         if (!isA(band.genre, "object")) throw { error: "No genres selected" }
         if (!isA(band.location, "object")) throw { error: "Location not found" }
 
         // check whether band is not already registered
-        conn.getRepository(Band).findOne(band)
-            .then((result) => { throw { error: "Band already registered" }})
+        let check = await conn.getRepository(Band).findOne(removeObjects(band))
+        if (check) throw { error: "Band already registered" }
 
         // create all the entities independently
         let promises : [Promise<Genre[]>, Promise<Location>, Promise<Band>] = [
@@ -150,15 +144,17 @@ module.exports = function(conn) {
         ]
 
         // execute calls in sequence
-        let result = await Promise.all(promises).catch((e) => { throw e })
+        let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
 
         // fill foreign key references
-        result[2].genre = result[0]
+        result[2].genre = [].concat(...result[0])
         result[2].place = result[1]
+
+        console.log(result[2])
 
         // update entity row
         let save = await conn.manager.save(result[2]).catch((e) => { throw e })
-        return save
+        return result[2]
     }
 
     async function createAnnounce(params) {
@@ -176,9 +172,11 @@ module.exports = function(conn) {
         result[2].owner = result[0]
         result[2].location = result[1]
 
+        console.log(result[2])
+
         // update entity row
         let save = await conn.manager.save(result[2]).catch((e) => { throw e })
-        return save
+        return result[2]
 
     }
 
