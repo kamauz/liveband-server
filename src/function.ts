@@ -35,13 +35,23 @@ module.exports = function(conn) {
         } 
     }
 
+    async function getMany<T>(arr, T) : Promise<T[]>{
+        let promiseArray = []
+        arr.forEach(element => {
+            promiseArray.push(get<T>(element, T))
+        })
+
+        let result = await Promise.all(promiseArray).catch((e) => { throw e })
+        return Promise.resolve(result)
+    }
+
     async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
         let promiseArray = []
         arr.forEach(element => {
             promiseArray.push(getAndCreate<T>(element, T))
         })
 
-        let result = await Promise.all(promiseArray).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promiseArray).catch((e) => { throw e })
         return Promise.resolve(result)
     }
 
@@ -49,10 +59,10 @@ module.exports = function(conn) {
 
             console.log('getAndCreate')
             data = removeObjects(data)
-            let got = await conn.getRepository(T).findOne(data).catch((e) => { return Promise.reject(e) })
+            let got = await conn.getRepository(T).findOne(data).catch((e) => { throw e })
             if (got) return Promise.resolve(got)
             else {
-                let additem = await addItem(data, T).catch((e) => { return Promise.reject(e) })
+                let additem = await addItem(data, T).catch((e) => { throw e })
             }
     }
 
@@ -77,9 +87,9 @@ module.exports = function(conn) {
         })
     }
 
-    async function get<T>(T, filter) {
-        let values = getEntityValues(T, filter).catch((e) => { return Promise.reject(e) })
-        return values
+    async function get<T>(filter, T) : Promise<T> {
+        let values = await getEntityValues<T>(filter, T).catch((e) => { throw e })
+        return Promise.resolve(values)
     }
 
     function removeObjects(obj) {
@@ -92,46 +102,42 @@ module.exports = function(conn) {
       }
 
     async function createEvent(event) : Promise<Event> {
-        return new Promise<Event>((resolve, reject) => {
-            // input data check
-            if (!isA(event.owner, "object")) reject({ error: "No owner selected" })
-            if (!isA(event.location, "object")) reject({ error: "Location not found" })
+        // input data check
+        if (!isA(event.owner, "object")) throw { error: "No owner selected" }
+        if (!isA(event.location, "object")) throw { error: "Location not found" }
 
-            // check whether event is not already registered
-            conn.getRepository(Event).findOne(event)
-                .then((result) => reject({ error: "Event already registered" }))
+        // check whether event is not already registered
+        conn.getRepository(Event).findOne(event)
+            .then((result) => { throw { error: "Event already registered" }})
 
-            // create all the entities independently
-            let promises : [Promise<User>, Promise<Location>, Promise<Event>] = [
-                getAndCreate(event.owner, User),
-                getAndCreate(event.location, Location),
-                getAndCreate(event, Event)
-            ]
+        // create all the entities independently
+        let promises : [Promise<Band[]>, Promise<User>, Promise<Location>, Promise<Event>] = [
+            getMany(event.bands, Band),
+            get(event.owner, User),
+            getAndCreate(event.location, Location),
+            getAndCreate(event, Event)
+        ]
 
-            Promise.all(promises).then((values:any[]) => {
-                // fill foreign key references
-                values[2].owner = values[0]
-                values[2].location = values[1]
+        let result = await Promise.all(promises).catch((e) => { throw e })
+        // fill foreign key references
+        result[3].bands = result[0]
+        result[3].owner = result[1]
+        result[3].location = result[2]
 
-                // update entity row
-                conn.manager.save(values[2])
-                    .then((result) => {
-                        resolve(result)
-                    }).catch((e) => reject(e))
-            }, reason => {
-                reject(reason)
-            })
-        })
+        // update entity row
+        let save = await conn.manager.save(result[3]).catch((e) => { throw e })
+        return Promise.resolve(result[3])
+
     }
 
     async function createBand(band) : Promise<Band> {
         // input data check
-        if (!isA(band.genre, "object")) return Promise.reject({ error: "No genres selected" })
-        if (!isA(band.location, "object")) return Promise.reject({ error: "Location not found" })
+        if (!isA(band.genre, "object")) throw { error: "No genres selected" }
+        if (!isA(band.location, "object")) throw { error: "Location not found" }
 
         // check whether band is not already registered
         conn.getRepository(Band).findOne(band)
-            .then((result) => { return Promise.reject({ error: "Band already registered" }) })
+            .then((result) => { throw { error: "Band already registered" }})
 
         // create all the entities independently
         let promises : [Promise<Genre[]>, Promise<Location>, Promise<Band>] = [
@@ -141,14 +147,14 @@ module.exports = function(conn) {
         ]
 
         // execute calls in sequence
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
 
         // fill foreign key references
         result[2].genre = result[0]
         result[2].place = result[1]
 
         // update entity row
-        let save = await conn.manager.save(result[2]).catch((e) => { return Promise.reject(e) })
+        let save = await conn.manager.save(result[2]).catch((e) => { throw e })
         return Promise.resolve(save)
     }
 
@@ -161,26 +167,26 @@ module.exports = function(conn) {
             getAndCreate(params.announce, Announce)
         ]
 
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         
         // fill foreign key references
         result[2].owner = result[0]
         result[2].location = result[1]
 
         // update entity row
-        let save = await conn.manager.save(result[2]).catch((e) => { return Promise.reject(e) })
+        let save = await conn.manager.save(result[2]).catch((e) => { throw e })
         return Promise.resolve(save)
 
     }
 
     async function alreadyExist<T>(data, T) : Promise<User> {
-        let result = await conn.getRepository(T).find(data).catch((e) => { return Promise.reject(e) })
+        let result = await conn.getRepository(T).find(data).catch((e) => { throw e })
         if (!result) return Promise.reject({ error: "Item does not exist" })
         else return Promise.resolve(result)
     }
 
     async function getUserInstruments(uid) {
-        if (!isA(uid, "string")) return Promise.reject("Invalid id")
+        if (!isA(uid, "string")) throw { error: "Invalid id" }
         let id = parseInt(uid)
         
         let promises : [Promise<User>, Promise<Instrument>] = [
@@ -192,12 +198,12 @@ module.exports = function(conn) {
                 .where({ "userId" : id })
                 .getMany()
             ]
-        let result = Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
     async function getUsersInLocation(lid) {
-        if (typeof (lid) != "string") return Promise.reject({ error: "Invalid id" })
+        if (typeof (lid) != "string") throw { error: "Invalid id" }
         let id = parseInt(lid)
 
         let promises : [Promise<User>, Promise<Genre[]>] = [
@@ -209,7 +215,7 @@ module.exports = function(conn) {
                 .setParameter("id", id)
                 .getMany()
             ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
@@ -225,12 +231,12 @@ module.exports = function(conn) {
                 .where({ "userId" : id })
                 .getMany()
             ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
     async function getUsersGivenGenreAndLocation(params) {
-        if (isA(params.id, "string") || isA(params.gid, "string")) return Promise.reject({ error: "Invalid id" })
+        if (isA(params.id, "string") || isA(params.gid, "string")) throw { error: "Invalid id" }
         let id = parseInt(params.id)
         let gid = parseInt(params.gid)
 
@@ -244,13 +250,13 @@ module.exports = function(conn) {
                 .setParameter("id", id)
                 .getMany()
             ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[2])
     }
 
     async function getUsersGivenInstrumentAndLocation(params) {
         if (!isA(params.id, "string") ||
-            !isA(params.iid, "string")) return Promise.reject({ error: "Invalid id" })
+            !isA(params.iid, "string")) throw { error: "Invalid id" }
         
         let id = parseInt(params.id)
         let iid = parseInt(params.iid)
@@ -267,14 +273,14 @@ module.exports = function(conn) {
                 .setParameters({ id: id, iid: iid })
                 .getMany()
             ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[2])
     }
 
     async function getUsersGivenInstrumentAndGenreAndLocation(params) {
         if (isA(params.id, "string") ||
             isA(params.gid, "string") ||
-            isA(params.iid, "string")) return Promise.reject({ error: "Invalid id" })
+            isA(params.iid, "string")) throw { error: "Invalid id" }
         
         let id = parseInt(params.id)
         let iid = parseInt(params.iid)
@@ -295,7 +301,7 @@ module.exports = function(conn) {
                 .setParameters({ id: id, iid: iid, gid: gid })
                 .getMany()
             ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[3])
     }
 
@@ -315,7 +321,7 @@ module.exports = function(conn) {
                 .setParameter("id", gid)
                 .getMany()
         ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
@@ -340,12 +346,12 @@ module.exports = function(conn) {
                 .setParameters({ gid: gid, iid: iid })
                 .getMany()
         ]
-        let result = Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
     async function getLocationsWithEventAndGenre(id) {
-        if (!isA(id, "string")) return Promise.reject({ error: "Invalid id" })
+        if (!isA(id, "string")) throw{ error: "Invalid id" }
         let gid = parseInt(id)
 
         let promises = [
@@ -359,7 +365,7 @@ module.exports = function(conn) {
                 .setParameter("id", gid)
                 .getMany()
         ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[2])
     }
 
@@ -375,7 +381,7 @@ module.exports = function(conn) {
                 .setParameter("id", id)
                 .getMany()
         ]
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         return Promise.resolve(result[1])
     }
 
@@ -387,7 +393,7 @@ module.exports = function(conn) {
             return Promise.reject({ error: "Invalid action" })
         }
         let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.instrument,
-            Instrument, Ability, "user", "instrument").catch((e) => { return Promise.reject(e) })
+            Instrument, Ability, "user", "instrument").catch((e) => { throw e })
         return Promise.resolve(result)             
     }
 
@@ -399,50 +405,37 @@ module.exports = function(conn) {
             return Promise.reject({ error: "Invalid action" })
         }
         let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.genre,
-            Genre, Preference, "user", "genre").catch((e) => { return Promise.reject(e) })
+            Genre, Preference, "user", "genre").catch((e) => { throw e })
         return Promise.resolve(result)           
     }
 
-    async function getEntityValues<T>(T, filter) {
-        return new Promise((resolve, reject) => {
-            // filter the entity values 
-            conn.getRepository(T).find(filter)
-                .then((result) => {
-                    resolve(result)
-                }).catch((e) => reject(treatError(e)))
-                
-        })
+    async function getEntityValues<T>(filter, T) : Promise<T> {
+        // filter the entity values 
+        let result : T = await conn.getRepository(T).find(filter).catch((e) => { throw e })
+        return Promise.resolve(result)
     }
 
     async function createUser(user) : Promise<User> {
-        return new Promise<User>((resolve, reject) => {
-            // input check
-            if (!isA(user, "object")) reject({ error: "Malformed input" })
-            if (!isA(user.place, "object")) reject({ error: "Malformed input" })
+        // input check
+        if (!isA(user, "object")) throw { error: "Malformed input" }
+        if (!isA(user.place, "object")) throw { error: "Malformed input" }
 
-            // check whether user is not already registered
-            conn.getRepository(User).findOne(user)
-                .then((result) => {
-                    if(result) reject({ error: "User already registered" })
-                })
+        // check whether user is not already registered
+        let check = await conn.getRepository(User).findOne(user).catch((e) => { throw { error: "User already registered" }})
 
-            // create all the entities independently
-            let promises : [Promise<Location>, Promise<User>] = [
-                getAndCreate(user.place, Location),
-                getAndCreate(user, User)
-            ]
+        // create all the entities independently
+        let promises : [Promise<Location>, Promise<User>] = [
+            getAndCreate(user.place, Location),
+            getAndCreate(user, User)
+        ]
 
-            Promise.all(promises).then((values:any[]) => {
-                // fill foreign key references
-                values[1].place = values[0]
+        let result = await Promise.all(promises).catch((e) => { throw e })
+        // fill foreign key references
+        result[1].place = result[0]
 
-                // update entity row
-                conn.getRepository(User).save(values[1])
-                resolve(values[1])
-            }, reason => {
-                reject(reason)
-            })
-        })
+        // update entity row
+        let save = await conn.getRepository(User).save(result[1])
+        return Promise.resolve(result[1])
     }
 
     async function createSimpleEntityValue<T>(data, T) {
@@ -450,7 +443,7 @@ module.exports = function(conn) {
         if (!isA(data, "object")) Promise.reject({ error: "Malformed input" })
 
         // create the item if not exists
-        let result = await getAndCreate(data, T).catch((e) => { return Promise.reject(e) })
+        let result = await getAndCreate(data, T).catch((e) => { throw e })
         return Promise.resolve(result)
     }
 
@@ -516,42 +509,42 @@ module.exports = function(conn) {
             alreadyExist(data2, S)
         ]
 
-        let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
+        let result = await Promise.all(promises).catch((e) => { throw e })
         // fill foreign key references
         item[attr1] = result[0]
         item[attr2] = result[1]
 
         // perform add or remove
         if (action == "add") {
-            let save = await conn.manager.save(item).catch((e) => {return Promise.reject(e) })
+            let save = await conn.manager.save(item).catch((e) => {throw e })
             return Promise.resolve(save)
         } else if (action == "rem") {
-            let remove = await conn.manager.remove(item).catch((e) => {return Promise.reject(e) })
+            let remove = await conn.manager.remove(item).catch((e) => {throw e })
             return Promise.resolve(remove)
         }  
     }
 
     async function complexItem<T,S,U>(action, data1, T, data2, S, U, attr1, attr2) : Promise<U> {
-            // check whether resources exists
-            let promises = [
-                alreadyExist(data1, T),
-                alreadyExist(data2, S)
-            ]
+        // check whether resources exists
+        let promises = [
+            alreadyExist(data1, T),
+            alreadyExist(data2, S)
+        ]
 
-            let result = await Promise.all(promises).catch((e) => { return Promise.reject(e) })
-            var newObj = new U()
-            // fill foreign key references
-            newObj[attr1] = result[0]
-            newObj[attr2] = result[1]
+        let result = await Promise.all(promises).catch((e) => { throw e })
+        var newObj = new U()
+        // fill foreign key references
+        newObj[attr1] = result[0]
+        newObj[attr2] = result[1]
 
-            // perform add or remove
-            if (action == "add") {
-                let save = await conn.manager.save(newObj).catch((e) => {return Promise.reject(e) })
-                return Promise.resolve(save)
-            } else if (action == "rem") {
-                let remove = await conn.manager.remove(newObj).catch((e) => {return Promise.reject(e) })
-                return Promise.resolve(remove)
-            }  
+        // perform add or remove
+        if (action == "add") {
+            let save = await conn.manager.save(newObj).catch((e) => {throw e })
+            return Promise.resolve(save)
+        } else if (action == "rem") {
+            let remove = await conn.manager.remove(newObj).catch((e) => {throw e })
+            return Promise.resolve(remove)
+        }  
     }
 
     function isA(el, res) {

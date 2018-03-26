@@ -37,7 +37,7 @@ createConnection().then(async conn => {
         return next()
     })
 
-    
+    // OK
     server.post('/band', async (req, res, next) => {
         createBand(req.body.band)
             .then((result) => {
