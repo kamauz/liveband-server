@@ -14,7 +14,7 @@ import { emit } from "cluster";
 
 createConnection().then(async conn => {
     var {server,privateKey} = require('./server')
-    var {facebookAuth, getEventsOwnedByUser, createInstrument, createGenre, getLocationWithPeopleGenreAndInstrument, getLocationPeopleGenre, getLocationsWithEventAndGenre, createAnnounce, createLocation, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, filterBy, getAndCreate, complexItem, treatError} = require('./function')(conn)
+    var {createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationWithPeopleGenreAndInstrument, getLocationPeopleGenre, getLocationsWithEventAndGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError} = require('./function')(conn)
     var jwt = require('restify-jwt')
 
     // OK
@@ -26,7 +26,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/account/login', async (req, res, next) => {
         facebookAuth(req.body.facebookAuth)
             .then((result) => {
@@ -35,7 +35,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/band', async (req, res, next) => {
         createBand(req.body.band)
             .then((result) => {
@@ -44,7 +44,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/event', async (req, res, next) => {
         createEvent(req.body.event)
             .then((result) => {
@@ -53,7 +53,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user', async (req, res, next) => {
         get(User, { relations: ["place"] })
             .then((result) => {
@@ -62,7 +62,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/user', async (req, res, next) => {
         createUser(req.body.user)
             .then((result) => {
@@ -71,7 +71,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/:id/genre', async (req, res, next) => {
         getUserGenres(req.params.id)
             .then((result) => {
@@ -80,7 +80,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/user/:id/genre', async (req, res, next) => {     
         handleUserGenres(req)
             .then((result) => {
@@ -89,7 +89,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/:id/instrument', async (req, res, next) => {
         getUserInstruments(req.params.id)
             .then((result) => {
@@ -98,7 +98,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/user/:id/instrument', async (req, res, next) => {
         handleUserInstruments(req)
             .then((result) => {
@@ -107,7 +107,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/location/:id', async (req, res, next) => {
         getUsersInLocation(req.params.id)
             .then((result) => {
@@ -116,7 +116,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/location/:id/genre/:gid', async (req, res, next) => {
         getUsersGivenGenreAndLocation(req.params)
             .then((result) => {
@@ -125,7 +125,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/location/:id/instrument/:iid', async (req, res, next) => {
         getUsersGivenInstrumentAndLocation(req.params)
             .then((result) => {
@@ -134,7 +134,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/user/location/:id/genre/:gid/instrument/:iid', async (req, res, next) => {
         getUsersGivenInstrumentAndGenreAndLocation(req.params)
             .then((result) => {
@@ -143,7 +143,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/location', async (req, res, next) => {
         get(Location, {})
             .then((result) => {
@@ -152,16 +152,16 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/location', async (req, res, next) => {
-        createLocation(req.body)
+        createSimpleEntityValue(req.body.location, Location)
             .then((result) => {
                 res.send(result)
             }).catch((e) => res.send(treatError(e)))
         next()
     })
 
-    // OK
+    
     server.get('/location/event/genre/:gid', async (req, res, next) => {
         getLocationsWithEventAndGenre(req.params.gid)
             .then((result) => {
@@ -170,7 +170,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/location/genre/:gid', async (req, res, next) => {
         getLocationPeopleGenre(req.params.gid)
             .then((result) => {
@@ -178,7 +178,7 @@ createConnection().then(async conn => {
             }).catch((e) => res.send(treatError(e)))
     })
 
-    // OK
+    
     server.get('/location/genre/:gid/instrument/:iid', async (req, res, next) => {
         getLocationWithPeopleGenreAndInstrument(req.params)
             .then((result) => {
@@ -187,7 +187,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/location/:name', async (req, res, next) => {
         get(Location, { name: res.params.name})
             .then((result) => {
@@ -196,7 +196,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/genre', async (req, res, next) => {
         get(Genre, {})
             .then((result) => {
@@ -205,9 +205,9 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/genre', async (req, res, next) => {
-        createGenre(req.body)
+        createSimpleEntityValue(req.body.genre, Genre)
             .then((result) => {
                 res.send(result)
             }).catch((e) => res.send(treatError(e)))
@@ -223,7 +223,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/instrument', async (req, res, next) => {
         get(Instrument, {})
             .then((result) => {
@@ -232,7 +232,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/announce', async (req, res, next) => {
         get(Announce, {})
             .then((result) => {
@@ -241,7 +241,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.post('/announce', async (req, res, next) => {
         createAnnounce(req.body)
             .then((result) =>{
@@ -250,7 +250,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/announce/:id', async (req, res, next) => {
         get(Announce, { id: req.params.id})
             .then((result) => {
@@ -259,16 +259,16 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK 
+     
     server.post('/instrument', async (req, res, next) => {
-        createInstrument(req.body)
+        createSimpleEntityValue(req.body.instrument, Instrument)
             .then((result) => {
                 res.send(result)
             }).catch((e) => res.send(treatError(e)))
         next()
     })
 
-    // OK
+    
     server.get('/instrument/:name', async (req, res, next) => {
         get(Instrument, { name: req.params.name })
             .then((result) => {
@@ -277,7 +277,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/event', async (req, res, next) => {
         get(Event, { relations: ["location", "owner", "bands"] })
             .then((result) => {
@@ -286,7 +286,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/event/:id', async (req, res, next) => {
         get(Event, { where: { id: req.params.id }, relations: ["location","owner","bands"] })
             .then((result) => {
@@ -295,7 +295,7 @@ createConnection().then(async conn => {
         next()
     })
 
-    // OK
+    
     server.get('/event/user/:id', async (req, res, next) => {
         getEventsOwnedByUser(req.params.id)
             .then((result) => {
