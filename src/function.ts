@@ -42,7 +42,7 @@ module.exports = function(conn) {
         })
 
         let result = await Promise.all(promiseArray).catch((e) => { throw e })
-        return Promise.resolve(result)
+        return result
     }
 
     async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
@@ -52,7 +52,7 @@ module.exports = function(conn) {
         })
 
         let result = await Promise.all(promiseArray).catch((e) => { throw e })
-        return Promise.resolve(result)
+        return result
     }
 
     async function getAndCreate<T>(data: object, T) : Promise<T> {
@@ -60,7 +60,7 @@ module.exports = function(conn) {
             console.log('getAndCreate')
             data = removeObjects(data)
             let got = await conn.getRepository(T).findOne(data).catch((e) => { throw e })
-            if (got) return Promise.resolve(got)
+            if (got) return got
             else {
                 let additem = await addItem(data, T).catch((e) => { throw e })
             }
@@ -89,7 +89,7 @@ module.exports = function(conn) {
 
     async function get<T>(filter, T) : Promise<T> {
         let values = await getEntityValues<T>(filter, T).catch((e) => { throw e })
-        return Promise.resolve(values)
+        return values
     }
 
     function removeObjects(obj) {
@@ -105,6 +105,7 @@ module.exports = function(conn) {
         // input data check
         if (!isA(event.owner, "object")) throw { error: "No owner selected" }
         if (!isA(event.location, "object")) throw { error: "Location not found" }
+        if (!isA(event.bands, "object")) throw { error: "No band selected" }
 
         // check whether event is not already registered
         conn.getRepository(Event).findOne(event)
@@ -123,10 +124,11 @@ module.exports = function(conn) {
         result[3].bands = result[0]
         result[3].owner = result[1]
         result[3].location = result[2]
+        console.log(result[3])
 
         // update entity row
         let save = await conn.manager.save(result[3]).catch((e) => { throw e })
-        return Promise.resolve(result[3])
+        return result[3]
 
     }
 
@@ -155,7 +157,7 @@ module.exports = function(conn) {
 
         // update entity row
         let save = await conn.manager.save(result[2]).catch((e) => { throw e })
-        return Promise.resolve(save)
+        return save
     }
 
     async function createAnnounce(params) {
@@ -175,14 +177,14 @@ module.exports = function(conn) {
 
         // update entity row
         let save = await conn.manager.save(result[2]).catch((e) => { throw e })
-        return Promise.resolve(save)
+        return save
 
     }
 
     async function alreadyExist<T>(data, T) : Promise<User> {
         let result = await conn.getRepository(T).find(data).catch((e) => { throw e })
         if (!result) return Promise.reject({ error: "Item does not exist" })
-        else return Promise.resolve(result)
+        else return result
     }
 
     async function getUserInstruments(uid) {
@@ -199,7 +201,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function getUsersInLocation(lid) {
@@ -216,7 +218,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function getUserGenres(uid) {
@@ -232,7 +234,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function getUsersGivenGenreAndLocation(params) {
@@ -251,7 +253,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[2])
+        return result[2]
     }
 
     async function getUsersGivenInstrumentAndLocation(params) {
@@ -274,7 +276,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[2])
+        return result[2]
     }
 
     async function getUsersGivenInstrumentAndGenreAndLocation(params) {
@@ -302,7 +304,7 @@ module.exports = function(conn) {
                 .getMany()
             ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[3])
+        return result[3]
     }
 
     async function getLocationPeopleGenre(id) {
@@ -322,7 +324,7 @@ module.exports = function(conn) {
                 .getMany()
         ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function getLocationWithPeopleGenreAndInstrument(params) {
@@ -347,7 +349,7 @@ module.exports = function(conn) {
                 .getMany()
         ]
         let result = Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function getLocationsWithEventAndGenre(id) {
@@ -366,7 +368,7 @@ module.exports = function(conn) {
                 .getMany()
         ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[2])
+        return result[2]
     }
 
     async function getEventsOwnedByUser(uid) {
@@ -382,7 +384,7 @@ module.exports = function(conn) {
                 .getMany()
         ]
         let result = await Promise.all(promises).catch((e) => { throw e })
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function handleUserInstruments(params) {
@@ -394,7 +396,7 @@ module.exports = function(conn) {
         }
         let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.instrument,
             Instrument, Ability, "user", "instrument").catch((e) => { throw e })
-        return Promise.resolve(result)             
+        return result           
     }
 
     async function handleUserGenres(params) {
@@ -406,13 +408,13 @@ module.exports = function(conn) {
         }
         let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.genre,
             Genre, Preference, "user", "genre").catch((e) => { throw e })
-        return Promise.resolve(result)           
+        return result          
     }
 
     async function getEntityValues<T>(filter, T) : Promise<T> {
         // filter the entity values 
         let result : T = await conn.getRepository(T).find(filter).catch((e) => { throw e })
-        return Promise.resolve(result)
+        return result
     }
 
     async function createUser(user) : Promise<User> {
@@ -435,7 +437,7 @@ module.exports = function(conn) {
 
         // update entity row
         let save = await conn.getRepository(User).save(result[1])
-        return Promise.resolve(result[1])
+        return result[1]
     }
 
     async function createSimpleEntityValue<T>(data, T) {
@@ -444,7 +446,7 @@ module.exports = function(conn) {
 
         // create the item if not exists
         let result = await getAndCreate(data, T).catch((e) => { throw e })
-        return Promise.resolve(result)
+        return result
     }
 
     function treatError(error) {
@@ -517,10 +519,10 @@ module.exports = function(conn) {
         // perform add or remove
         if (action == "add") {
             let save = await conn.manager.save(item).catch((e) => {throw e })
-            return Promise.resolve(save)
+            return save
         } else if (action == "rem") {
             let remove = await conn.manager.remove(item).catch((e) => {throw e })
-            return Promise.resolve(remove)
+            return remove
         }  
     }
 
@@ -540,10 +542,10 @@ module.exports = function(conn) {
         // perform add or remove
         if (action == "add") {
             let save = await conn.manager.save(newObj).catch((e) => {throw e })
-            return Promise.resolve(save)
+            return save
         } else if (action == "rem") {
             let remove = await conn.manager.remove(newObj).catch((e) => {throw e })
-            return Promise.resolve(remove)
+            return remove
         }  
     }
 
