@@ -31,10 +31,10 @@ createConnection().then(async conn => {
         try {
             const result = await facebookAuth(req.body.facebookAuth)
             res.send(result)
-            next()
         } catch(e) {
             res.send(treatError(emit))
         }
+        return next()
     })
 
     
