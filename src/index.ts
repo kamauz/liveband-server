@@ -64,10 +64,10 @@ createConnection().then(async conn => {
 
     // OK
     server.post('/user', async (req, res, next) => {
-        createUser(req)
+        createUser(req.body.user)
             .then((result) => {
                 res.send(result)
-            }).catch((e) => res.send(treatError(e)))
+            }).catch((e) => res.send(e))
         next()
     })
 
@@ -207,7 +207,7 @@ createConnection().then(async conn => {
 
     // OK
     server.post('/genre', async (req, res, next) => {
-        handleUserGenres(req)
+        createGenre(req.body)
             .then((result) => {
                 res.send(result)
             }).catch((e) => res.send(treatError(e)))

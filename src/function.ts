@@ -519,11 +519,13 @@ module.exports = function(conn) {
 
             // check whether user is not already registered
             conn.getRepository(User).findOne(user)
-                .then((result) => reject({ error: "User already registered" }))
+                .then((result) => {
+                    if(result) reject({ error: "User already registered" })
+                })
 
             // create all the entities independently
             let promises : [Promise<Location>, Promise<User>] = [
-                getAndCreate(user.location, Location),
+                getAndCreate(user.place, Location),
                 getAndCreate(user, User)
             ]
 
@@ -532,10 +534,8 @@ module.exports = function(conn) {
                 values[1].place = values[0]
 
                 // update entity row
-                conn.manager.save(values[1])
-                    .then((result) => {
-                        resolve(result)
-                    }).catch((e) => reject(e))
+                conn.getRepository(User).save(values[1])
+                resolve(values[1])
             }, reason => {
                 reject(reason)
             })
@@ -545,7 +545,7 @@ module.exports = function(conn) {
     async function createGenre(data) : Promise<Genre> {
         return new Promise<Genre>((resolve, reject) => {
             // input check
-            if (!isA(data.location, "object")) reject({ error: "Malformed input" })
+            if (!isA(data.genre, "object")) reject({ error: "Malformed input" })
 
             // create the genre if not exists
             getAndCreate(data.genre, Genre)
