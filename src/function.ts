@@ -36,6 +36,7 @@ module.exports = function(conn) {
     }
 
     async function getMany<T>(arr, T) : Promise<T[]>{
+<<<<<<< HEAD
         let promiseArray = []
         arr.forEach(element => {
             promiseArray.push(get<T>(element, T))
