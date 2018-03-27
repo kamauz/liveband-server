@@ -1,6 +1,7 @@
 import {Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable} from "typeorm";
 import {Location} from './Location'
 import {Genre} from './Genre'
+import {User} from './User'
 
 @Entity()
 export class Band {
@@ -20,6 +21,10 @@ export class Band {
     @ManyToMany(type => Genre)
     @JoinTable()
     genre: Genre[]
+
+    @ManyToMany(type => User)
+    @JoinTable()
+    user: User[]
 
     @ManyToOne((type) => Location, (group) => group.name)
     place: Location

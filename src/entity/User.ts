@@ -1,5 +1,7 @@
-import {Entity, PrimaryGeneratedColumn, Column, ManyToOne} from "typeorm";
+import {Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable} from "typeorm";
 import {Location} from './Location'
+import {Genre} from './Genre'
+import {Instrument} from './Instrument'
 
 @Entity()
 export class User {
@@ -36,4 +38,12 @@ export class User {
 
     @ManyToOne((type) => Location, (group) => group.name, {cascadeInsert:true, cascadeUpdate:true})
     place: Location
+
+    @ManyToMany(type => Genre)
+    @JoinTable()
+    genre: Genre[]
+
+    @ManyToMany(type => Instrument)
+    @JoinTable()
+    instrument: Instrument[]
 }

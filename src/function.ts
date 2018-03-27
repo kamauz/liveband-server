@@ -41,20 +41,20 @@ module.exports = function(conn) {
         return result
     }
 
-    async function getAndCreateMany<T>(arr, T) : Promise<T[]>{
-        const promiseArray:T[] = arr.map(element => getAndCreate<T>(element, T))
+    async function getAndCreateMany<T>(arr:T[], T) : Promise<T[]>{
+        const promiseArray = arr.map(element => getAndCreate<T>(element, T))
         const result = await Promise.all(promiseArray).catch((e) => { throw e })
         return result
     }
 
-    async function getAndCreate<T>(data: object, T) : Promise<T> {
+    async function getAndCreate<T>(data: T, T) : Promise<T> {
 
             console.log('getAndCreate')
-            data = removeObjects(data)
-            let got = await conn.getRepository(T).findOne(data).catch((e) => { throw e })
+            let filter_data = removeObjects(data)
+            let got = await conn.getRepository(T).findOne(filter_data).catch((e) => { throw e })
             if (got) return got
             else {
-                let additem = await addItem(data, T).catch((e) => { throw e })
+                let additem = await addItem(filter_data, T).catch((e) => { throw e })
                 return additem
             }
     }
@@ -86,12 +86,13 @@ module.exports = function(conn) {
     }
 
     function removeObjects(obj) {
+        let newObj = {}
         Object.keys(obj).forEach(key => {
-          if (isA(obj[key], 'object')) {
-            delete obj[key]
+          if (!isA(obj[key], 'object')) {
+            newObj[key] = obj[key]
           }
         })
-        return obj
+        return newObj
       }
 
     async function createEvent(event) : Promise<Event> {
@@ -131,30 +132,33 @@ module.exports = function(conn) {
         console.log('createBand')
         if (!isA(band.genre, "object")) throw { error: "No genres selected" }
         if (!isA(band.location, "object")) throw { error: "Location not found" }
+        if (!isA(band.user, "object")) throw { error: "Users not found" }
 
         // check whether band is not already registered
         let check = await conn.getRepository(Band).findOne(removeObjects(band))
         if (check) throw { error: "Band already registered" }
 
         // create all the entities independently
-        let promises : [Promise<Genre[]>, Promise<Location>, Promise<Band>] = [
+        let promises : [Promise<Genre[]>, Promise<Location>, Promise<User[]>, Promise<Band>] = [
             getAndCreateMany(band.genre, Genre),
             getAndCreate(band.location, Location),
+            getAndCreateMany(band.user, User),
             getAndCreate(band, Band)
         ]
 
         // execute calls in sequence
-        let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
+        let result = await Promise.all(promises).catch((e) => { throw e })
+        let obj = result[3]
 
         // fill foreign key references
-        result[2].genre = [].concat(...result[0])
-        result[2].place = result[1]
-
-        console.log(result[2])
+        obj.genre = [].concat(...result[0])
+        obj.place = result[1]
+        obj.user = [].concat(...result[2])
+        console.log(obj)
 
         // update entity row
-        let save = await conn.manager.save(result[2]).catch((e) => { throw e })
-        return result[2]
+        let save = await conn.manager.save(obj).catch((e) => { throw e })
+        return obj
     }
 
     async function createAnnounce(params) {
@@ -165,13 +169,11 @@ module.exports = function(conn) {
             getAndCreate(params.announce.location, Location),
             getAndCreate(params.announce, Announce)
         ]
-
-        let result = await Promise.all(promises).catch((e) => { throw e })
+        let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
         
         // fill foreign key references
         result[2].owner = result[0]
         result[2].location = result[1]
-
         console.log(result[2])
 
         // update entity row
@@ -186,75 +188,56 @@ module.exports = function(conn) {
         else return result
     }
 
-    async function getUserInstruments(uid) {
+    // OK
+    async function getUserInstruments(uid) : Promise<Instrument[]> {
         if (!isA(uid, "string")) throw { error: "Invalid id" }
         let id = parseInt(uid)
-        
-        let promises : [Promise<User>, Promise<Instrument>] = [
-            alreadyExist({ id: uid }, User),
-            conn.getRepository("Instrument")
-                .createQueryBuilder("instrument")
-                .innerJoinAndSelect("ability", "ability", "ability.instrumentId = instrument.id")
-                .innerJoinAndSelect("user", "user", "ability.userId = user.id")
-                .where({ "userId" : id })
-                .getMany()
-            ]
-        let result = Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+        let result = await conn.getRepository(User).findOne({ where: { id: id }, relations: ["instrument"] })
+        return result.instrument
     }
 
+    // OK
     async function getUsersInLocation(lid) {
         if (typeof (lid) != "string") throw { error: "Invalid id" }
         let id = parseInt(lid)
 
-        let promises : [Promise<User>, Promise<Genre[]>] = [
-            alreadyExist({ id: id }, Location),
-            conn.getRepository("User")
-                .createQueryBuilder("user")
-                .innerJoinAndSelect("location", "location", "user.place = location.id")
-                .where("placeId = :id")
-                .setParameter("id", id)
-                .getMany()
-            ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+        let result = await conn.getRepository("User")
+            .createQueryBuilder("user")
+            .innerJoinAndSelect("location", "location", "user.place = location.id")
+            .where("placeId = :id")
+            .setParameter("id", id)
+            .getMany()
+            .catch((e) => { throw e })
+        return result
     }
 
-    async function getUserGenres(uid) {
+    async function getUserGenres(uid) : Promise<Genre[]> {
         let id = parseInt(uid)
-
-        let promises : [Promise<User>, Promise<Genre[]>] = [
-            alreadyExist({ id: uid }, User),
-            conn.getRepository("Genre")
-                .createQueryBuilder("genre")
-                .innerJoinAndSelect("preference", "pref", "genre.id = pref.genreId")
-                .innerJoinAndSelect("user", "user", "user.id = pref.userId")
-                .where({ "userId" : id })
-                .getMany()
-            ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+        let result = await conn.getRepository(User).findOne({ where: { id: id }, relations: ["genre"] }, User).catch((e) => { throw e })
+        console.log(result)
+        return result.genre
     }
 
+    // OK
     async function getUsersGivenGenreAndLocation(params) {
-        if (isA(params.id, "string") || isA(params.gid, "string")) throw { error: "Invalid id" }
+        if (!isA(params.id, "string") || !isA(params.gid, "string")) throw { error: "Invalid id" }
         let id = parseInt(params.id)
         let gid = parseInt(params.gid)
 
-        let promises = [
-            alreadyExist({ id: id }, Location),
-            alreadyExist({ id: gid }, Genre),
-            conn.getRepository("User")
-                .createQueryBuilder("user")
-                .innerJoinAndSelect("location", "location", "user.place = location.id")
-                .where("placeId = :id")
-                .setParameter("id", id)
-                .getMany()
-            ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[2]
+        let result = await conn.getRepository("User")
+            .createQueryBuilder("user")
+            .innerJoinAndSelect("location", "location", "user.place = location.id")
+            .innerJoinAndSelect("user_genre_genre", "user_genre_genre", "user.id = user_genre_genre.userId")
+            .innerJoinAndSelect("genre", "genre", "genre.id = user_genre_genre.genreId")
+            .where("location.id = :id AND genreId = :gid")
+            .setParameters({ id: id, gid: gid })
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
+    // OK
     async function getUsersGivenInstrumentAndLocation(params) {
         if (!isA(params.id, "string") ||
             !isA(params.iid, "string")) throw { error: "Invalid id" }
@@ -262,151 +245,143 @@ module.exports = function(conn) {
         let id = parseInt(params.id)
         let iid = parseInt(params.iid)
         
-        let promises = [
-            alreadyExist({ id: id }, Location),
-            alreadyExist({ id: iid }, Instrument),
-            conn.getRepository("User")
-                .createQueryBuilder("user")
-                .innerJoinAndSelect("location", "location", "user.place = location.id")
-                .innerJoinAndSelect("ability", "ability", "user.id = ability.user")
-                .innerJoinAndSelect("instrument", "instrument", "instrument.id = ability.instrument")
-                .where("placeId = :id AND instrumentId = :iid")
-                .setParameters({ id: id, iid: iid })
-                .getMany()
-            ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[2]
+        let result = await conn.getRepository("User")
+            .createQueryBuilder("user")
+            .innerJoinAndSelect("location", "location", "user.place = location.id")
+            .innerJoinAndSelect("user_instrument_instrument", "user_instrument_instrument", "user.id = user_instrument_instrument.userId")
+            .innerJoinAndSelect("instrument", "instrument", "instrument.id = user_instrument_instrument.instrumentId")
+            .where("placeId = :id AND instrumentId = :iid")
+            .setParameters({ id: id, iid: iid })
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
     async function getUsersGivenInstrumentAndGenreAndLocation(params) {
-        if (isA(params.id, "string") ||
-            isA(params.gid, "string") ||
-            isA(params.iid, "string")) throw { error: "Invalid id" }
+        if (!isA(params.id, "string") ||
+            !isA(params.gid, "string") ||
+            !isA(params.iid, "string")) throw { error: "Invalid id" }
         
         let id = parseInt(params.id)
         let iid = parseInt(params.iid)
         let gid = parseInt(params.gid)
 
-        let promises = [
-            alreadyExist({ id: id }, Location),
-            alreadyExist({ id: iid }, Instrument),
-            alreadyExist({ id: gid }, Genre),
-            conn.getRepository("User")
-                .createQueryBuilder("user")
-                .innerJoinAndSelect("location", "location", "user.place = location.id")
-                .innerJoinAndSelect("preference", "preference", "user.id = preference.user")
-                .innerJoinAndSelect("genre", "genre", "genre.id = preference.genre")
-                .innerJoinAndSelect("ability", "ability", "user.id = ability.user")
-                .innerJoinAndSelect("instrument", "instrument", "instrument.id = ability.instrument")
-                .where("placeId = :id AND instrumentId = :iid AND genreId = :gid")
-                .setParameters({ id: id, iid: iid, gid: gid })
-                .getMany()
-            ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[3]
+        let result = await conn.getRepository("User")
+            .createQueryBuilder("user")
+            .innerJoinAndSelect("location", "location", "user.place = location.id")
+            .innerJoinAndSelect("user_genre_genre", "user_genre_genre", "user.id = user_genre_genre.userId")
+            .innerJoinAndSelect("genre", "genre", "genre.id = user_genre_genre.genreId")
+            .innerJoinAndSelect("user_instrument_instrument", "user_instrument_instrument", "user.id = user_instrument_instrument.userId")
+            .innerJoinAndSelect("instrument", "instrument", "instrument.id = user_instrument_instrument.instrumentId")
+            .where("placeId = :id AND instrumentId = :iid AND genreId = :gid")
+            .setParameters({ id: id, iid: iid, gid: gid })
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
     async function getLocationPeopleGenre(id) {
 
-        if (!(isA(id, "string"))) Promise.reject({ error: "Invalid id" })
+        if (!(isA(id, "string"))) throw { error: "Invalid id" }
         let gid = parseInt(id)
         
-        let promises = [
-            alreadyExist({ id: gid }, Genre),
-            conn.getRepository("Location")
-                .createQueryBuilder("location")
-                .innerJoinAndSelect("user", "user", "user.place = location.id")
-                .innerJoinAndSelect("preference", "preference", "preference.user = user.id")
-                .innerJoinAndSelect("genre", "genre", "genre.id = preference.genre")
-                .where("genreId = :id")
-                .setParameter("id", gid)
-                .getMany()
-        ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+        let result = await conn.getRepository("Location")
+            .createQueryBuilder("location")
+            .innerJoinAndSelect("user", "user", "user.place = location.id")
+            .innerJoinAndSelect("user_genre_genre", "user_genre_genre", "user_genre_genre.userId = user.id")
+            .innerJoinAndSelect("genre", "genre", "genre.id = user_genre_genre.genreId")
+            .where("genreId = :id")
+            .setParameter("id", gid)
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
     async function getLocationWithPeopleGenreAndInstrument(params) {
-        if (isA(params.gid, "string") ||
-            isA(params.iid, "string")) Promise.reject({ error: "Invalid id" })
+        if (!isA(params.gid, "string") ||
+            !isA(params.iid, "string")) throw { error: "Invalid id" }
 
         let gid = parseInt(params.gid)
         let iid = parseInt(params.iid)
 
-        let promises = [
-            alreadyExist({ id: gid }, Genre),
-            alreadyExist({ id: iid }, Instrument),
-            conn.getRepository("Location")
-                .createQueryBuilder("location")
-                .innerJoinAndSelect("user", "user", "user.place = location.id")
-                .innerJoinAndSelect("preference", "preference", "preference.user = user.id")
-                .innerJoinAndSelect("genre", "genre", "genre.id = preference.genre")
-                .innerJoinAndSelect("ability", "ability", "ability.user = user.id")
-                .innerJoinAndSelect("instrument", "instrument", "instrument.id = ability.instrument")
-                .where("genreId = :gid AND instrumentId = :iid")
-                .setParameters({ gid: gid, iid: iid })
-                .getMany()
-        ]
-        let result = Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+        let result = await conn.getRepository("Location")
+            .createQueryBuilder("location")
+            .innerJoinAndSelect("user", "user", "user.place = location.id")
+            .innerJoinAndSelect("user_genre_genre", "user_genre_genre", "user_genre_genre.userId = user.id")
+            .innerJoinAndSelect("genre", "genre", "genre.id = user_genre_genre.genreId")
+            .innerJoinAndSelect("user_instrument_instrument", "user_instrument_instrument", "user_instrument_instrument.userId = user.id")
+            .innerJoinAndSelect("instrument", "instrument", "instrument.id = user_instrument_instrument.instrumentId")
+            .where("genreId = :gid AND instrumentId = :iid")
+            .setParameters({ gid: gid, iid: iid })
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
     async function getLocationsWithEventAndGenre(id) {
-        if (!isA(id, "string")) throw{ error: "Invalid id" }
+        if (!isA(id, "string")) throw { error: "Invalid id" }
         let gid = parseInt(id)
 
-        let promises = [
-            alreadyExist({ id: gid }, Genre),
-            conn.getRepository("Location")
-                .createQueryBuilder("location")
-                .innerJoinAndSelect("user", "user", "user.place = location.id")
-                .innerJoinAndSelect("preference", "preference", "preference.user = user.id")
-                .innerJoinAndSelect("genre", "genre", "genre.id = preference.genre")
-                .where("genreId = :id")
-                .setParameter("id", gid)
-                .getMany()
-        ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[2]
+        let result = await conn.getRepository("Location")
+            .createQueryBuilder("location")
+            .innerJoinAndSelect("event", "event", "event.location = location.id")
+            .innerJoinAndSelect("event_bands_band", "event_bands_band", "event_bands_band.eventId = event.id")
+            .innerJoinAndSelect("band", "band", "band.id = event_bands_band.bandId")
+            .innerJoinAndSelect("band_genre_genre", "band_genre_genre", "band.id = band_genre_genre.bandId")
+            .innerJoinAndSelect("genre", "genre", "genre.id = band_genre_genre.genreId")
+            .where("genreId = :id")
+            .setParameter("id", gid)
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
     async function getEventsOwnedByUser(uid) {
-        if (!uid) return Promise.reject({ error: "Error in the input" })
+        if (!uid) throw { error: "Error in the input" }
         var id = parseInt(uid)
-        let promises = [
-            alreadyExist({ id: id }, User),
-            conn.getRepository("Event")
-                .createQueryBuilder("event")
-                .innerJoinAndSelect("user", "user", "event.owner = user.id")
-                .where("ownerId = :id")
-                .setParameter("id", id)
-                .getMany()
-        ]
-        let result = await Promise.all(promises).catch((e) => { throw e })
-        return result[1]
+
+        let result = await conn.getRepository("Event")
+            .createQueryBuilder("event")
+            .innerJoinAndSelect("user", "user", "event.owner = user.id")
+            .where("ownerId = :id")
+            .setParameter("id", id)
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
     }
 
+    // OK
     async function handleUserInstruments(params) {
-        if (!params.body.action || !isA(params.params.user, "string") || !isA(params.body.instrument, "object")) {
-            return Promise.reject({ error: "Error while deciding the action" })
+        if (!params.body.action || !isA(params.params.id, "string") || !isA(params.body.instrument, "object")) {
+           throw { error: "Error while deciding the action" }
         }
         if (params.body.action != "add" && params.body.action != "rem") {
-            return Promise.reject({ error: "Invalid action" })
+            throw { error: "Invalid action" }
         }
-        let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.instrument,
-            Instrument, Ability, "user", "instrument").catch((e) => { throw e })
-        return result           
+        let result = await handleArrayData(params.body.action, User, params.params.id, Instrument, 'instrument', 'name', params.body.instrument, ["instrument"])
+            .catch((e) => { console.log(e); throw e })
+        console.log(result)
+        return result            
     }
 
+    // OK
     async function handleUserGenres(params) {
-        if (!params.body.action || !isA(params.params.user, "string") || !isA(params.body.genre, "object")) {
-            return Promise.reject({ error: "Error while deciding the action" })
+        if (!params.body.action || !isA(params.params.id, "string") || !isA(params.body.genre, "object")) {
+            throw { error: "Error while deciding the action" }
         }
         if (params.body.action != "add" && params.body.action != "rem") {
-            return Promise.reject({ error: "Invalid action" })
+            throw { error: "Invalid action" }
         }
-        let result = await complexItem(params.body.action, { id: params.params.user }, User, params.body.genre,
-            Genre, Preference, "user", "genre").catch((e) => { throw e })
+
+        let result = await handleArrayData(params.body.action, User, params.params.id, Genre, 'genre', 'name', params.body.genre, ["genre"])
+            .catch((e) => { console.log(e); throw e })
+        console.log(result)
         return result          
     }
 
@@ -418,25 +393,36 @@ module.exports = function(conn) {
 
     async function createUser(user) : Promise<User> {
         // input check
-        if (!isA(user, "object")) throw { error: "Malformed input" }
-        if (!isA(user.place, "object")) throw { error: "Malformed input" }
+        if (!isA(user, "object")) throw { error: "Malformed user data" }
+        if (!isA(user.place, "object")) throw { error: "Place is missing" }
+        if (!isA(user.genre, "object")) throw { error: "Genre is missing" }
+        if (!isA(user.instrument, "object")) throw { error: "Instrument is missing" }
 
+        console.log(removeObjects(user))
         // check whether user is not already registered
-        let check = await conn.getRepository(User).findOne(user).catch((e) => { throw { error: "User already registered" }})
+        let check = await conn.getRepository(User).findOne(removeObjects(user)).catch((e) => { throw { error: "User already registered" }})
+
+        console.log(user.instrument)
 
         // create all the entities independently
-        let promises : [Promise<Location>, Promise<User>] = [
+        let promises : [Promise<Instrument[]>, Promise<Genre[]>, Promise<Location>, Promise<User>] = [
+            getAndCreateMany(user.instrument, Instrument),
+            getAndCreateMany(user.genre, Genre),
             getAndCreate(user.place, Location),
             getAndCreate(user, User)
         ]
+        let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
 
-        let result = await Promise.all(promises).catch((e) => { throw e })
         // fill foreign key references
-        result[1].place = result[0]
+        result[3].instrument = [].concat(...result[0])
+        result[3].genre = [].concat(...result[1])
+        result[3].place = result[2]
+
+        console.log(result[3])
 
         // update entity row
-        let save = await conn.getRepository(User).save(result[1])
-        return result[1]
+        let save = await conn.getRepository(User).save(result[3])
+        return result[3]
     }
 
     async function createSimpleEntityValue<T>(data, T) {
@@ -525,7 +511,25 @@ module.exports = function(conn) {
         }  
     }
 
+    // OK
+    async function handleArrayData(action, T, id, U, arr, attr1, attr2, relations) {
+        let result = await conn.getRepository(T).findOne({ where: { id: id }, relations: relations })
+        if (!result) throw { error: "The item is not registerd" }
+        let newObj = await getAndCreate(attr2, U)
+        if (action == "add") {
+            result[arr].push(newObj)
+            let save = await conn.manager.save(result).catch((e) => { throw e })
+        } else if (action == "rem") {
+            result[arr] = result[arr].filter((element) => {
+                return element.name != newObj[attr1]
+            })
+            let save = await conn.manager.save(result).catch((e) => { throw e })
+        }
+        return result
+    }
+
     async function complexItem<T,S,U>(action, data1, T, data2, S, U, attr1, attr2) : Promise<U> {
+
         // check whether resources exists
         let promises = [
             alreadyExist(data1, T),
@@ -541,10 +545,10 @@ module.exports = function(conn) {
         // perform add or remove
         if (action == "add") {
             let save = await conn.manager.save(newObj).catch((e) => {throw e })
-            return save
+            return newObj
         } else if (action == "rem") {
             let remove = await conn.manager.remove(newObj).catch((e) => {throw e })
-            return remove
+            return newObj
         }  
     }
 
@@ -552,5 +556,5 @@ module.exports = function(conn) {
         return (typeof el == res)
     }
 
-    return {createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationsWithEventAndGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError}
+    return {createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationWithPeopleGenreAndInstrument, getLocationsWithEventAndGenre, getLocationPeopleGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError}
 }
