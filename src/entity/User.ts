@@ -1,7 +1,8 @@
-import {Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable} from "typeorm";
+import {Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, OneToOne, JoinColumn, OneToMany} from "typeorm";
 import {Location} from './Location'
 import {Genre} from './Genre'
 import {Instrument} from './Instrument'
+import {Setting} from './Setting'
 
 @Entity()
 export class User {
@@ -15,25 +16,25 @@ export class User {
     @Column({ nullable: false })
     lastname: string
 
-    @Column()
+    @Column({ nullable: true })
     facebook: string
 
-    @Column()
+    @Column({ nullable: true })
     google: string
 
-    @Column({ select: false })
+    @Column({ nullable: true, select: false })
     username: string
 
-    @Column({ select: false })
+    @Column({ nullable: true, select: false })
     password: string
 
-    @Column({ type: 'date' })
+    @Column({ nullable: true, type: 'date' })
     born_date: string
 
     @Column({ type: 'datetime', default: () => "CURRENT_TIMESTAMP" })
     register_date: string
 
-    @Column({ type: 'datetime' })
+    @Column({ nullable: true, type: 'datetime' })
     last_visit: string
 
     @ManyToOne((type) => Location, (group) => group.name, {cascadeInsert:true, cascadeUpdate:true})
@@ -46,4 +47,5 @@ export class User {
     @ManyToMany(type => Instrument)
     @JoinTable()
     instrument: Instrument[]
+
 }

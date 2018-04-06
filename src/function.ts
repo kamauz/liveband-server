@@ -7,11 +7,13 @@ import {Ability} from "./entity/Ability"
 import {Announce} from "./entity/Announce"
 import {Event} from "./entity/Event"
 import {Band} from "./entity/Band"
+import {SettingValue} from "./entity/SettingValue"
+import {SettingCategory} from "./entity/SettingCategory"
+
 import { resolve } from "dns";
 
-module.exports = function(conn) {
+module.exports = function(conn, privateKey) {
     var axios = require('axios')
-    var privateKey = require('./privatekey')
     var jwt = require('jsonwebtoken')
     var jwt_crypt = require('jsonwebtoken')
 
@@ -35,6 +37,18 @@ module.exports = function(conn) {
         } 
     }
 
+    async function decrypt(t) {
+        var decoded = jwt.verify(t, privateKey)
+        delete decoded['iat']
+        return decoded
+    }
+
+    async function decryptToken(t) {
+        let token = t.toString().replace('Bearer ','')
+        let dec = await decrypt(token)
+        return dec
+    }
+
     async function getMany<T>(arr, T) : Promise<T[]>{
         const promiseArray:T[] = arr.map(element => get<T>(element, T))
         const result = await Promise.all(promiseArray).catch(e => { throw e })
@@ -49,14 +63,14 @@ module.exports = function(conn) {
 
     async function getAndCreate<T>(data: T, T) : Promise<T> {
 
-            console.log('getAndCreate')
-            let filter_data = removeObjects(data)
-            let got = await conn.getRepository(T).findOne(filter_data).catch((e) => { throw e })
-            if (got) return got
-            else {
-                let additem = await addItem(filter_data, T).catch((e) => { throw e })
-                return additem
-            }
+        console.log('getAndCreate')
+        let filter_data = removeObjects(data)
+        let got = await conn.getRepository(T).findOne(filter_data).catch((e) => { throw e })
+        if (got) return got
+        else {
+            let additem = await addItem(filter_data, T).catch((e) => { throw e })
+            return additem
+        }
     }
 
     function getFacebookInfo(accessToken) {
@@ -64,10 +78,10 @@ module.exports = function(conn) {
             var result
             var a = axios.get(fb+'/me', {
                 params: {
-                access_token: accessToken
+                    access_token: accessToken
                 }
             })
-            .then(async (response) => {
+            .then((response) => {
                 var name = response.data.name.split(" ")
                 var json = {
                     lastname: name.pop(),
@@ -76,7 +90,7 @@ module.exports = function(conn) {
                 }
                 console.log(json)
                 resolve(json)
-            }).catch(async (error) => reject(error));
+            }).catch((error) => reject(error));
         })
     }
 
@@ -161,16 +175,52 @@ module.exports = function(conn) {
         return obj
     }
 
-    async function createAnnounce(params) {
+    async function createSetting(params) {
 
         // create all the entities independently
-        let promises : [Promise<User>, Promise<Location>, Promise<Announce>] = [
-            getAndCreate(params.announce.owner, User),
-            getAndCreate(params.announce.location, Location),
-            getAndCreate(params.announce, Announce)
+        let promises : [Promise<SettingValue[]>, Promise<SettingCategory>] = [
+            getAndCreateMany(params.category.setting, SettingValue),
+            getAndCreate(params.category, SettingCategory),
+
         ]
         let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
         
+        // fill foreign key references
+        result[1].setting = result[0]
+        console.log(result[1])
+
+        // update entity row
+        let save = await conn.manager.save(result[1]).catch((e) => { throw e })
+        return result[1]
+
+    }
+
+    async function getSessionUser(headers) {
+        if (headers.authorization) {
+            let userinfo = await decryptToken(headers.authorization).catch(e => { throw e })
+            console.log('userinfo')
+            console.log(userinfo)
+            return userinfo
+        } else throw { error: 'No token found'}
+    }
+
+    async function createAnnounce(req) {
+
+        let session = await getSessionUser(req.headers).catch(e => { console.log(e); throw e })
+        console.log('session')
+        let body = JSON.parse(req.body)
+        console.log(body.announce)
+        console.log(body.announce.location)
+        let loc = getAndCreate(body.announce.location, Location).catch(e => { console.log(e) })
+        console.log('location')
+        console.log(loc)
+        // create all the entities independently
+        let promises : [Promise<User>, Promise<Location>, Promise<Announce>] = [
+            get(session, User),
+            getAndCreate(body.announce.location, Location),
+            getAndCreate(body.announce, Announce)
+        ]
+        let result = await Promise.all(promises).catch((e) => { console.log(e); throw e })
         // fill foreign key references
         result[2].owner = result[0]
         result[2].location = result[1]
@@ -256,6 +306,46 @@ module.exports = function(conn) {
             .catch((e) => { throw e })
 
         return result
+    }
+
+    async function getUsersGivenInstrumentAndGenreAndProvince(params) {
+        if (!isA(params.province, "string") ||
+            !isA(params.gid, "string") ||
+            !isA(params.iid, "string")) throw { error: "Invalid id" }
+        
+        let province = params.province
+        let iid = parseInt(params.iid)
+        let gid = parseInt(params.gid)
+
+        let result = await conn.getRepository("User")
+            .createQueryBuilder("user")
+            .innerJoinAndSelect("location", "location", "user.place = location.id")
+            .innerJoinAndSelect("user_genre_genre", "user_genre_genre", "user.id = user_genre_genre.userId")
+            .innerJoinAndSelect("genre", "genre", "genre.id = user_genre_genre.genreId")
+            .innerJoinAndSelect("user_instrument_instrument", "user_instrument_instrument", "user.id = user_instrument_instrument.userId")
+            .innerJoinAndSelect("instrument", "instrument", "instrument.id = user_instrument_instrument.instrumentId")
+            .where("location.province = :province AND instrumentId = :iid AND genreId = :gid")
+            .setParameters({ province: province, iid: iid, gid: gid })
+            .getMany()
+            .catch((e) => { throw e })
+
+        return result
+    }
+
+    async function getUserNear(body) {
+
+        let location = Object.assign(new Location, body.location)
+        let genre = Object.assign(new Genre, body.genre)
+        let instrument = Object.assign(new Instrument, body.instrument)
+
+        let obj = {
+            place: location,
+            genre: genre,
+            instrument: instrument
+        }
+
+        let users = await conn.getRepository(User).find(obj, User)
+        return users
     }
 
     async function getUsersGivenInstrumentAndGenreAndLocation(params) {
@@ -450,43 +540,36 @@ module.exports = function(conn) {
     }
 
     async function verifyUser(json) {
-        return new Promise((resolve, reject) => {
-            // reject whether token is not found
-            if (!json.token) reject({ error: "Token is missing" })
-            // verify user token in the request header
-            jwt.verify(json.token, privateKey, function(err, decoded) {
-                if(err) reject({ error: "Error when decrypting the token" })
-                resolve(decoded)
-            })
-        });
+        // reject whether token is not found
+        if (!json.token) throw { error: "Token is missing" }
+        // verify user token in the request header
+        jwt.verify(json.token, privateKey, (err, decoded) => {
+            if(err) throw { error: "Error when decrypting the token" }
+            return decoded
+        })
     }
 
     async function facebookAuth(token) {
-        return new Promise((resolve, reject) => {
-            if (token) {
-                getFacebookInfo(token).then((user_fbinfo) => {
-                    let user = user_fbinfo
-                    conn.getRepository(User).findOne(user).then((authuser) => {
-                        if (!authuser) {
-                            var newUser = Object.assign(new User, user)
-                            conn.manager.save(newUser)
-                        }
-                        console.log(privateKey)
-                        user['token'] = jwt_crypt.sign(user, privateKey)
-                        resolve(user)
-                    })
-                })                
+        if (token) {
+            let user_fbinfo = await getFacebookInfo(token)
+            let authuser = await conn.getRepository(User).findOne(user_fbinfo)
+            if (!authuser) {
+                var newUser = Object.assign(new User, user_fbinfo)
+                conn.manager.save(newUser)
             }
-            reject({ error: "Incorrect input" })
-        })    
+            user_fbinfo['token'] = await generateJwtToken(user_fbinfo, privateKey).catch(e => { console.log(e); throw e })
+            user_fbinfo['fbtoken'] = token
+            return user_fbinfo              
+        } else throw { error: "Facebook token not found" }
     }
 
-    function generateJwtToken(json, privateKey) {
-        return new Promise((resolve, reject) => {
-            // generate user token
-            var jwtToken = jwt.sign(json, privateKey)
-            resolve(jwtToken)
-        })
+    async function generateJwtToken(json, privateKey) {
+        // generate user token
+        let signed = await jwt.sign(json, privateKey).toString()
+        let decrypted = await decryptToken(signed).catch(e => { console.log(e); throw e })
+        if (JSON.stringify(json) === JSON.stringify(decrypted)) {
+            return signed
+        } else { throw { error: "Unable to verify JWT token" }}
     }
 
     async function complexItemToItem<T,S,U>(action,item, data1, T, data2, S, U, attr1, attr2) : Promise<U> {
@@ -556,5 +639,5 @@ module.exports = function(conn) {
         return (typeof el == res)
     }
 
-    return {createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationWithPeopleGenreAndInstrument, getLocationsWithEventAndGenre, getLocationPeopleGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError}
+    return {createSetting, getUserNear, getUsersGivenInstrumentAndGenreAndProvince, createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationWithPeopleGenreAndInstrument, getLocationsWithEventAndGenre, getLocationPeopleGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError}
 }

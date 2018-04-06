@@ -23,4 +23,7 @@ export class Announce {
 
     @ManyToOne((type) => User, (group) => group.id)
     owner: User
+
+    @Column()
+    type: string
 }
