@@ -40,7 +40,7 @@ server.use(restify.plugins.throttle({
 
 server.use(restify.plugins.gzipResponse())
 
-server.listen(3000, "http://suspicious-jang-b9a99e.netlify.com/", function() {
+server.listen(3000, "localhost", function() {
     console.log(server.address())
     console.log('\t%s listening at %s', server.name, server.url);
 })
