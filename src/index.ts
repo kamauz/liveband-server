@@ -17,6 +17,9 @@ createConnection().then(async conn => {
     var {createSetting, getUserNear, getUsersGivenInstrumentAndGenreAndProvince, createSimpleEntityValue, facebookAuth, getEventsOwnedByUser, getLocationWithPeopleGenreAndInstrument, getLocationsWithEventAndGenre, getLocationPeopleGenre, createAnnounce, getUsersGivenInstrumentAndGenreAndLocation, getUsersGivenInstrumentAndLocation, getUsersGivenGenreAndLocation, getUsersInLocation, handleUserInstruments, getUserInstruments, handleUserGenres, getUserGenres, createEvent, createBand, get, createUser, getEntityValues, verifyUser, generateJwtToken, getFacebookInfo, isA, addItem, getAndCreate, complexItem, treatError} = require('./function')(conn, privateKey)
     var jwt = require('restify-jwt')
 
+    server.get('/', async (req, res, next) => {
+        res.send('Server reachable! :)')
+    })
     
     server.get('/band', async (req, res, next) => {
         get({ relations: ["genre", "place", "user"] }, Band)
