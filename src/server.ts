@@ -40,9 +40,8 @@ server.use(restify.plugins.throttle({
 
 server.use(restify.plugins.gzipResponse())
 
-server.listen(function() {
-    console.log(server.address())
-    console.log('\t%s listening at %s', server.name, server.url);
+server.listen(process.env.PORT || 8080, () => {
+    console.log(`${server.name} listening at ${server.url}`)
 })
 
 module.exports = {server,privateKey}
