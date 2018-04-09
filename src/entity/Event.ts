@@ -25,7 +25,7 @@ export class Event {
     @Column({ type: 'datetime', nullable: false })
     end_time: string
 
-    @ManyToOne((type) => Location, (group) => group.id, {cascadeInsert:true, cascadeUpdate:true})
+    @ManyToOne((type) => Location, (group) => group.id)
     location: Location
 
     @ManyToOne((type) => User, (group) => group.id )

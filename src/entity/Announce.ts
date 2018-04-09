@@ -24,6 +24,6 @@ export class Announce {
     @ManyToOne((type) => User, (group) => group.id)
     owner: User
 
-    @Column()
+    @Column({ nullable: true })
     type: string
 }

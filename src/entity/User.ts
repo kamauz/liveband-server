@@ -37,7 +37,7 @@ export class User {
     @Column({ nullable: true, type: 'datetime' })
     last_visit: string
 
-    @ManyToOne((type) => Location, (group) => group.name, {cascadeInsert:true, cascadeUpdate:true})
+    @ManyToOne((type) => Location, (group) => group.name)
     place: Location
 
     @ManyToMany(type => Genre)
