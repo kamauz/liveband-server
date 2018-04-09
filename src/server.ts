@@ -40,7 +40,7 @@ server.use(restify.plugins.throttle({
 
 server.use(restify.plugins.gzipResponse())
 
-server.listen(3000, "0.0.0.0", function() {
+server.listen(function() {
     console.log(server.address())
     console.log('\t%s listening at %s', server.name, server.url);
 })
